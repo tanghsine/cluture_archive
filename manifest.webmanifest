@@ -1,0 +1,1 @@
+{"background_color":"#f4efe4","display":"standalone","icons":[{"sizes":"192x192","src":"icon-192.png","type":"image/png"},{"sizes":"512x512","src":"icon-512.png","type":"image/png"},{"sizes":"any","src":"icon.svg","type":"image/svg+xml"}],"name":"文心集","scope":"./","short_name":"文心","start_url":"./","theme_color":"#f4efe4"}

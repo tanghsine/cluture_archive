@@ -4,6 +4,7 @@ const DIMS={works:['作品与见闻','我遇见了什么',['书','电影','电�
 const T2D={};for(const d in DIMS)DIMS[d][2].forEach(t=>T2D[t]=d);
 const FL=[['fav','⭐','收藏'],['moved','❤️','打动我'],['impact','🔥','影响很大'],['again','↻','值得再看']];
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8),today=()=>new Date().toISOString().slice(0,10);
+const greet=()=>{const h=new Date().getHours();return h<6?'夜深了，适合慢慢回看。':h<12?'上午好，记下今天的触动吧。':h<18?'下午好，灵感常在不经意处。':'晚上好，回望一下今天的收获。'};
 // ---- IndexedDB ----
 const DB=new Promise((ok,no)=>{const q=indexedDB.open('culture-archive',1);q.onupgradeneeded=()=>{q.result.createObjectStore('entries',{keyPath:'id'});q.result.createObjectStore('images',{keyPath:'id'})};q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)});
 const tx=(s,m,f)=>DB.then(d=>new Promise((ok,no)=>{const t=d.transaction(s,m),q=f(t.objectStore(s));t.oncomplete=()=>ok(q&&q.result);t.onerror=()=>no(t.error)}));
@@ -21,18 +22,19 @@ async function hydrate(){for(const im of document.querySelectorAll('img[data-i]'
 // ---- 视图片段 ----
 const flags=e=>FL.filter(f=>e[f[0]]).map(f=>f[1]).join('');
 const card=e=>`<a class="card" href="#/e/${e.id}">${e.images?.[0]?imgTag(e.images[0]):''}<div><div class="t">${esc(e.title)} <span class="sub">${flags(e)}</span></div><div class="row sub"><span class="chip type">${esc(e.type)}</span>${(e.creators||[]).map(esc).join('、')} ${when(e)}</div><p>${esc(e.content||e.feel||e.why||'')}</p></div></a>`;
-const list=a=>a.length?a.map(card).join(''):'<div class="empty">这里还没有内容。点右下角 ＋ 留下第一条。</div>';
+const list=a=>a.length?a.map(card).join(''):'<div class="empty">还没有内容。<br>遇到触动你的东西时，点右下角 ＋ 留下第一条吧。</div>';
 const chips=(a,h)=>a.map(([n,ids])=>`<a class="chip" href="${h(n)}">${esc(n)} ${ids.length}</a>`).join(' ');
 // ---- 页面 ----
 const V={};
 V.home=()=>{const n=d=>E.filter(e=>T2D[e.type]===d).length,rnd=E.length?E[Math.floor(Math.random()*E.length)]:null;
-return `<h1>文化与灵感档案</h1><div class="sub">记录那些曾经进入过我的世界的东西。已留下 ${E.length} 条。</div>
+return `<h1>文心集</h1><div class="sub">${greet()}</div>
+<div class="sub">记录那些曾经进入过我的世界的东西。已留下 ${E.length} 条。</div>
 <div class="row" style="margin-top:14px"><button class="b" onclick="location.hash='#/edit/new?frag=1'">灵感碎片</button><button class="b o" onclick="location.hash='#/edit/new'">完整档案</button></div>
 <div class="dims">${Object.entries(DIMS).map(([k,v])=>`<a class="dim" href="#/list?dim=${k}"><i>${n(k)}</i><b>${v[0]}</b><span>${v[1]}</span></a>`).join('')}</div>
 <h2>最近记录</h2>${list(sorted(E).slice(0,5))}
 <h2>最近打动我的</h2>${list(sorted(E.filter(e=>e.moved)).slice(0,4))}
 <h2>我反复回看的</h2>${list(sorted(E.filter(e=>e.again)).slice(0,4))}
-<h2>随机回望 <button class="chip" onclick="route()">换一条</button></h2>${rnd?card(rnd):'<div class="empty">暂无</div>'}`};
+<h2>随机回望 <button class="chip" onclick="route()">换一条</button></h2>${rnd?card(rnd):'<div class="empty">还没有可回望的记录，留下第一条后再来看看。</div>'}`};
 V.list=p=>{const dim=p.get('dim')||'',fl=p.get('flag')||'',tag=p.get('tag')||'',q=p.get('q')||'';
 const hd=`<h1>${tag?'#'+esc(tag):'全部档案'}</h1><input id="q" type="search" placeholder="搜索标题、人物、内容、标签…" value="${esc(q)}">
 <div class="row" style="margin:12px 0"><a class="chip ${!dim&&!fl?'on':''}" href="#/list">全部</a>${Object.entries(DIMS).map(([k,v])=>`<a class="chip ${dim===k?'on':''}" href="#/list?dim=${k}">${v[0]}</a>`).join('')}${FL.map(f=>`<a class="chip ${fl===f[0]?'on':''}" href="#/list?flag=${f[0]}">${f[1]}${f[2]}</a>`).join('')}</div><div id="res"></div>`;
