@@ -1,5 +1,6 @@
 'use strict';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2400)};
 const DIMS={works:['作品与见闻','我遇见了什么',['书','电影','电视剧','音乐','播客','文章','视频','艺术','展览','游戏','其他']],minds:['人物与思想','谁影响了我',['人物','思想','观点','句子','台词']],aesth:['审美与感受','什么打动了我',['碎片','视觉','照片','画面','地点','空间','故事','经历','审美']],long:['向往与灵感','它让我想到什么',['向往','灵感','想法']]};
 const T2D={};for(const d in DIMS)DIMS[d][2].forEach(t=>T2D[t]=d);
 const FL=[['fav','⭐','收藏'],['moved','❤️','打动我'],['impact','🔥','影响很大'],['again','↻','值得再看']];
@@ -74,8 +75,12 @@ return `<a class="sub" href="javascript:history.back()">‹ 取消</a><h1>${n?(f
 <label>日期</label><input id="f-date" type="date" value="${v('date')}"><label>链接</label><input id="f-link" type="url" value="${v('link')}">
 <div class="fl">${FL.map(f=>`<label style="display:inline;margin:0"><input type="checkbox" id="f-${f[0]}" style="width:auto" ${e[f[0]]?'checked':''}> ${f[1]}${f[2]}</label>`).join(' ')}</div></details>
 <div style="margin-top:24px"><button class="b" id="f-save">保存</button></div>`};
-V.more=()=>`<h1>更多</h1><div class="sub">数据只存在这台设备的浏览器里，不会上传。换设备或清理浏览器前，请先导出备份。</div>
-<h2>备份</h2><div class="row"><button class="b" onclick="exp()">导出 JSON</button><button class="b o" onclick="$('#imp').click()">导入 JSON</button></div><input id="imp" type="file" accept=".json,application/json" hidden onchange="imp(this.files[0])">
+V.more=()=>`<h1>更多</h1><div class="sub">数据只存在这台设备的浏览器里，不会上传。换设备或清理浏览器前，请先备份。</div>
+<h2>备份</h2><div class="sub">备份文本可直接粘贴到备忘录保存。建议每月备份一次。</div>
+<div class="row" style="margin-top:10px"><button class="b" onclick="copyTxt()">复制纯文本备份</button><button class="b o" onclick="exp()">下载完整备份</button></div>
+<textarea id="bk" placeholder="在此粘贴备份文本…"></textarea>
+<div class="row" style="margin-top:10px"><button class="b" onclick="importText($('#bk').value)">从文本导入</button><button class="t" onclick="$('#imp').click()">或选择备份文件</button></div>
+<input id="imp" type="file" accept=".json,application/json" hidden onchange="imp(this.files[0])">
 <h2>统计</h2><div class="stats">${Object.entries(DIMS).map(([k,v])=>`<span>${v[0]}<b>${E.filter(e=>T2D[e.type]===k).length}</b></span>`).join('')}<span>人物<b>${people().length}</b></span><span>标签<b>${tagMap().length}</b></span></div>`;
 // ---- 动作 ----
 function drawImgs(){const h=$('#f-imgs');if(!h)return;h.innerHTML=pend.keep.map(i=>`<div>${imgTag(i)}<button class="x" onclick="pend.keep=pend.keep.filter(x=>x!='${i}');drawImgs()">×</button></div>`).join('')+pend.add.map((a,j)=>`<div><img src="${urls[a.id]??=URL.createObjectURL(a.blob)}"><button class="x" onclick="pend.add.splice(${j},1);drawImgs()">×</button></div>`).join('');hydrate()}
@@ -90,11 +95,27 @@ e.images=[...pend.keep,...pend.add.map(a=>a.id)];await put('entries',e);await lo
 async function tog(id,k){const e=byId(id);e[k]=!e[k];e.updated=new Date().toISOString();await put('entries',e);route()}
 async function rm(id){if(!confirm('确定删除这条档案？此操作不可撤销。'))return;const e=byId(id);for(const i of e.images||[])await del('images',i);await del('entries',id);await load();location.hash='#/'}
 const b64=b=>new Promise(r=>{const f=new FileReader;f.onload=()=>r(f.result);f.readAsDataURL(b)});
+const bkHead=()=>({app:'culture-archive',name:'文心集',version:2,exportedAt:new Date().toISOString()});
+// 纯文本备份：条目保留全部文字字段（含 images id 数组），不含图片数据，可直接粘贴到备忘录
+async function copyTxt(){const bk={...bkHead(),data:{entries:E,note:'纯文本备份不含图片数据'}};
+const t=$('#bk');t.value=JSON.stringify(bk);t.select();
+try{await navigator.clipboard.writeText(t.value);toast('已复制，去备忘录粘贴保存')}catch{toast('已填入文本框，长按全选复制')}}
+// 完整备份：含图片 base64，包头与纯文本备份统一
 async function exp(){const imgs=[];for(const e of E)for(const i of e.images||[]){const r=await getImg(i);if(r)imgs.push({id:i,data:await b64(r.blob)})}
-const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({app:'culture-archive',version:1,exported:new Date().toISOString(),entries:E,images:imgs})],{type:'application/json'}));a.download=`culture-archive-${today()}.json`;a.click()}
-async function imp(f){if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d.entries))throw 0;
-if(!confirm(`将导入 ${d.entries.length} 条档案；相同 ID 的记录会被覆盖。继续？`))return;
-for(const i of d.images||[])await put('images',{id:i.id,blob:await(await fetch(i.data)).blob()});for(const e of d.entries)await put('entries',e);await load();alert('导入完成');route()}catch{alert('导入失败：不是有效的档案备份文件')}}
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({...bkHead(),data:{entries:E,images:imgs}})],{type:'application/json'}));a.download=`culture-archive-${today()}.json`;a.click();toast('已下载完整备份（含图片）')}
+// 统一导入：文本 / 文件都走这里；兼容旧版无头格式 {entries,images}
+async function importText(str){if(!str||!str.trim())return toast('请先粘贴备份文本');
+let d;try{d=JSON.parse(str.trim())}catch{return toast('文本不是有效的备份格式')}
+const data=d.data||d;
+if(!Array.isArray(data.entries))return toast('这不是有效的文心集备份');
+if(d.app&&d.app!=='culture-archive')return toast('这不是文心集的备份');
+const n=data.entries.length;
+if(!confirm(`将合并导入 ${n} 条记录：文字以备份为准，本地已有图片保留。继续？`))return;
+for(const e of data.entries){if(!e||!e.id)continue;await put('entries',e)}
+if(Array.isArray(data.images))for(const i of data.images){if(!i||!i.id||!i.data)continue;
+try{await put('images',{id:i.id,blob:await(await fetch(i.data)).blob()})}catch{}}
+await load();route();toast(`已恢复 ${n} 条`)}
+async function imp(f){if(!f)return;try{await importText(await f.text())}catch{toast('导入失败：不是有效的档案备份文件')}}
 // ---- 路由 ----
 function route(){const[h,qs]=(location.hash.slice(1)||'/').split('?'),s=h.split('/').filter(Boolean),p=new URLSearchParams(qs||''),k=s[0]||'home',fn=V[k]||V.home;
 $('#app').innerHTML=fn(s.slice(1),p);$('#fab').style.display=k==='edit'?'none':'';
